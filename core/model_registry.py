@@ -3,12 +3,12 @@ core/model_registry.py
 
 Central registry for all ML models.
 To add a new model:
-  1. Drop the .pkl into _models/ OR provide a drive_id
+  1. Drop the .joblib into _models/ OR provide a drive_id
   2. Add an entry to REGISTERED_MODELS below
   3. Access it anywhere via: registry.get("your_model_name")
 """
 
-import pickle
+import joblib
 import logging
 import os
 import gdown
@@ -25,20 +25,20 @@ MODELS_DIR = BASE_DIR / "_models"
 # file         → filename inside the _models/ directory
 # description  → shown in the /_models health endpoint
 # drive_id     → Google Drive file ID (optional, downloaded if file is missing)
+
 REGISTERED_MODELS = {
     "detect_programming_language": {
-        "file": "code_with_language_detection.pkl",
+        "file": "code_with_language_detection.joblib",
         "description": "Detect type of programming language",
-        "drive_id": os.getenv("MODEL_DRIVE_ID", "1iyY46m58EAzTKxpy_RWpCyGdDneRNI-1"),
+        "drive_id": os.getenv("MODEL_DRIVE_ID", "1AnDat3XJW65KCIoexKgVDaCF7RHT2yet"),
     },
     # "sentiment": {
-    #     "file": "sentiment.pkl",
+    #     "file": "sentiment.joblib",
     #     "description": "Classifies text sentiment as positive / negative / neutral.",
     #     "drive_id": "",
     # },
 }
 # ─────────────────────────────────────────────────────────────────────────────
-
 
 def _download_from_drive(drive_id: str, destination: Path):
     """Download a file from Google Drive using gdown."""
@@ -77,7 +77,7 @@ class ModelRegistry:
 
             try:
                 with open(path, "rb") as f:
-                    self._store[name] = pickle.load(f)
+                    self._store[name] = joblib.load(f)
                 self._status[name] = "loaded"
                 logger.info(f"Loaded model: '{name}' from {path}")
             except Exception as e:
