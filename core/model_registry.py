@@ -3,13 +3,15 @@ core/model_registry.py
 
 Central registry for all ML models.
 To add a new model:
-  1. Drop the .pkl into models/
+  1. Drop the .pkl into _models/ OR provide a drive_id
   2. Add an entry to REGISTERED_MODELS below
   3. Access it anywhere via: registry.get("your_model_name")
 """
 
 import pickle
 import logging
+import os
+import gdown
 from pathlib import Path
 from typing import Any
 
@@ -22,21 +24,29 @@ MODELS_DIR = BASE_DIR / "_models"
 # key          → name used in registry.get("key")
 # file         → filename inside the _models/ directory
 # description  → shown in the /_models health endpoint
+# drive_id     → Google Drive file ID (optional, downloaded if file is missing)
 REGISTERED_MODELS = {
     "detect_programming_language": {
-         "file": "code_with_language_detection.pkl",
-         "description": "Detect type of programming language",
-     },
+        "file": "code_with_language_detection.pkl",
+        "description": "Detect type of programming language",
+        "drive_id": os.getenv("MODEL_DRIVE_ID", "1iyY46m58EAzTKxpy_RWpCyGdDneRNI-1"),
+    },
     # "sentiment": {
     #     "file": "sentiment.pkl",
     #     "description": "Classifies text sentiment as positive / negative / neutral.",
-    # },
-    # "spam_filter": {
-    #     "file": "spam_filter.pkl",
-    #     "description": "Detects spam messages.",
+    #     "drive_id": "",
     # },
 }
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+def _download_from_drive(drive_id: str, destination: Path):
+    """Download a file from Google Drive using gdown."""
+    url = f"https://drive.google.com/file/d/{drive_id}/view?usp=sharing"
+    logger.info(f"Downloading model from Google Drive to {destination} ...")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    gdown.download(url, str(destination), quiet=False)
+    logger.info(f"Download complete: {destination}")
 
 
 class ModelRegistry:
@@ -48,10 +58,23 @@ class ModelRegistry:
         """Called once at startup — loads every registered model."""
         for name, config in REGISTERED_MODELS.items():
             path = MODELS_DIR / config["file"]
+
+            # ── Download from Drive if file is missing ────────────────────────
             if not path.exists():
-                logger.warning(f"Model file not found: {path}. Skipping '{name}'.")
-                self._status[name] = "missing"
-                continue
+                drive_id = config.get("drive_id", "").strip()
+                if drive_id:
+                    try:
+                        _download_from_drive(drive_id, path)
+                    except Exception as e:
+                        logger.error(f"Failed to download '{name}' from Drive: {e}")
+                        self._status[name] = f"download_error: {e}"
+                        continue
+                else:
+                    logger.warning(f"Model file not found and no drive_id set: {path}. Skipping '{name}'.")
+                    self._status[name] = "missing"
+                    continue
+            # ─────────────────────────────────────────────────────────────────
+
             try:
                 with open(path, "rb") as f:
                     self._store[name] = pickle.load(f)
